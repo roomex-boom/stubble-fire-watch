@@ -3,7 +3,8 @@
 **Project Title:** Machine Learning-Based Prediction of Agricultural Residue Burning Activity Across Districts of Northwestern India (Punjab & Haryana)  
 **Authors:** Academic Capstone Team & Research Assistants  
 **Date:** November 2026  
-**Status:** Completed & Peer-Review Ready  
+**Audited & Verified:** November 19, 2026  
+**Status:** Peer-Review & Capstone Defense Ready  
 
 ---
 
@@ -11,7 +12,7 @@
 
 Post-monsoon agricultural crop residue burning (stubble burning) across the Northwestern Indian states of Punjab and Haryana generates severe atmospheric particulate pollution ($PM_{2.5}$ and $PM_{10}$), triggering annual public health emergencies across the Indo-Gangetic Plains. Accurate district-level, next-day forecasting of open-field burning activity is vital for state pollution control boards and agricultural authorities to strategically deploy in-situ machinery (super-seeders, balers) and enforcement squads. 
 
-In this investigation, we design an end-to-end, reproducible machine learning architecture that integrates ground-monitored fire bulletins from ICAR-CREAMS, multi-sensor satellite thermal anomaly detections from NASA-FIRMS (MODIS, VIIRS, SNPP), district-level agricultural paddy statistics, and historical burned area measurements. Evaluating five regression models under a strict chronological time-series cross-validation protocol, our champion **Random Forest Regressor** achieves a Validation $R^2$ of **0.686** and a Mean Absolute Error (MAE) of **11.93 fires/day**, compared to a baseline Dummy Regressor MAE of **40.24 fires/day** (a 70.3% error reduction). On an untouched prospective test set (Seasons 2024–2026), the model maintains robust predictive performance (MAE of **7.60 fires/day**). The trained pipeline is packaged into an interactive, containerizable Flask web decision-support system.
+In this investigation, we design an end-to-end, reproducible machine learning architecture that integrates ground-monitored fire bulletins from ICAR-CREAMS, multi-sensor satellite thermal anomaly detections from NASA-FIRMS (MODIS, VIIRS, SNPP), district-level agricultural paddy statistics, and historical burned area measurements. Following an exhaustive technical and scientific audit, all predictive lag features were restructured to reflect **true calendar-day offsets ($t-1, t-2, \dots$)** rather than row shifts, FIRMS missingness was preserved by distinguishing confirmed zero detections from unmapped observations, and agricultural features were strictly aligned to the **prior finalized crop year ($t-1$)** to eliminate post-harvest production leakage. Evaluating five regression models under a strict chronological time-series protocol (Train: 2018–2022, Validation: 2023, Test: 2024–2026), our champion **Random Forest Regressor** achieves a Validation $R^2$ of **0.692** and a Mean Absolute Error (MAE) of **11.86 fires/day**, compared to a baseline Dummy Regressor MAE of **40.24 fires/day** (a 70.5% error reduction). On the prospective held-out test set (Seasons 2024–2026), the model achieves an MAE of **7.51 fires/day**. The trained pipeline is packaged into an audited, production-grade Flask web application featuring strict input validation gates and feature provenance tracking.
 
 ---
 
@@ -23,24 +24,25 @@ The resulting biomass combustion emits massive quantities of carbon monoxide ($C
 
 ---
 
-## 3. Problem Statement
+## 3. Problem Statement & Mathematical Formulation
 
 While earth observation satellites (MODIS, VIIRS) provide retrospective detections of active fire hotspots, retrospective reporting fails to prevent emissions. Environmental regulators currently lack predictive systems that anticipate fire surges before they occur. The primary engineering challenge is to predict the **next-day ground-monitored agricultural fire count (`fires_day`)** at the administrative district level across Punjab (22 districts) and Haryana (21 districts), formulated mathematically as:
 
 $$\hat{y}_{d, t} = f(\mathbf{x}_{d, \le t-1})$$
 
-where $\hat{y}_{d, t}$ is the predicted active fire count in district $d$ on date $t$, and $\mathbf{x}_{d, \le t-1}$ represents the feature vector containing strictly lagged satellite, ground, agricultural, and calendar observations prior to date $t$.
+where $\hat{y}_{d, t}$ is the predicted active fire count in district $d$ on calendar date $t$, and $\mathbf{x}_{d, \le t-1}$ represents the feature vector containing strictly lagged satellite, ground, agricultural, and calendar observations up to calendar date $t-1$.
 
 ---
 
 ## 4. Research Objectives
 
 1. Harmonize multi-agency datasets into an aligned spatial-temporal schema.
-2. Engineer leakage-free temporal lags, rolling momentum metrics, and agricultural capacity indicators.
-3. Empirically evaluate the statistical distributions, seasonal bell curves, and geographic hotspots of stubble burning.
-4. Train and benchmark five machine learning regression algorithms using chronological time-series splitting.
-5. Quantify the relative predictive importance of satellite thermal observations versus historical ground persistence.
-6. Package the best model into an accessible, production-ready Flask web interface.
+2. Ensure strict calendar-day lag alignment ($t-1$ day, not row indices) grouped by state and district.
+3. Preserve satellite observation missingness, distinguishing confirmed zero detections from unmonitored observations.
+4. Align agricultural paddy statistics to prior published crop years ($Y-1$) to eliminate post-harvest production leakage.
+5. Empirically evaluate the statistical distributions, seasonal bell curves, and geographic hotspots of stubble burning.
+6. Train and benchmark five machine learning regression algorithms using chronological time-series splitting.
+7. Package the best model into an accessible, robust Flask web interface with strict validation gates.
 
 ---
 
@@ -49,7 +51,7 @@ where $\hat{y}_{d, t}$ is the predicted active fire count in district $d$ on dat
 - **RQ1:** Does integrating multi-sensor satellite thermal anomalies (MODIS, SNPP, VIIRS) significantly improve next-day fire prediction over simple historical autoregressive models?
 - **RQ2:** To what extent does district-level Kharif rice cultivation acreage explain spatial variations in burning volume?
 - **RQ3:** Can shallow, transparent machine learning algorithms (Random Forest, Gradient Boosting) achieve operational predictive accuracy without resorting to opaque deep neural networks?
-- **RQ4:** How do model predictions generalize across unseen consecutive calendar years?
+- **RQ4:** How do model predictions generalize across unseen prospective calendar years?
 
 ---
 
@@ -89,31 +91,34 @@ Data cleaning was executed in `notebooks/Data_cleaning.ipynb` following rigorous
 
 ---
 
-## 9. Feature Engineering Methodology
+## 9. Feature Engineering Methodology (Audited)
 
-To ensure zero target leakage for next-day prediction, every feature at day $t$ was computed strictly using information available at or before $t-1$:
+### A. True Calendar-Day Lag Alignment
+Unlike naive index shifting, a true calendar lag for date $t$ must strictly correspond to calendar date $t - k\text{ days}$. If date $t - 1$ was not in the monitoring catalog (e.g., across multi-month seasonal breaks or unmonitored days), the lag is treated as missing (`NaN`), and an explicit indicator `lag1_is_missing = 1` is recorded. Grouping is strictly performed by `(state_creams, district_standardized)`.
 
-```mermaid
-flowchart LR
-    A["Raw Data at t-1, t-2, ..."] --> B["District-Grouped Lag Shift (shift(1))"]
-    B --> C["Rolling Windows (3-day, 7-day mean/max)"]
-    C --> D["Feature Matrix at Day t"]
-    D --> E["Prediction of fires_day at Day t"]
-```
+### B. FIRMS Observation Availability
+We explicitly distinguish three states of FIRMS satellite data:
+1. `detected`: District boundary monitored and 1 or more thermal anomalies detected.
+2. `zero_detection`: District boundary monitored, but satellite recorded zero thermal anomalies.
+3. `unavailable_unmapped`: District lacks boundary polygon coordinates (newer districts), meaning satellite observations were unmapped rather than zero. Preserved with `sat_lag1_is_missing = 1`.
 
-### Engineered Feature Categories (28 Features):
+### C. Prior-Year Agricultural Alignment
+To eliminate post-harvest production leakage, agricultural statistics for season $Y$ are strictly mapped from agricultural year $Y-1$ (`season_year = year + 1`). This guarantees that only finalized crop statistics already published prior to the post-monsoon harvest are used.
+
+### Engineered Feature Categories (29 Features):
 1. **Satellite Thermal Detections:**
-   - 1-day, 2-day, and 3-day total detection lags (`sat_lag1`, `sat_lag2`, `sat_lag3`).
-   - 3-day and 7-day rolling means and 7-day rolling maximums (`sat_roll_mean_3d`, `sat_roll_mean_7d`, `sat_roll_max_7d`).
-   - Sensor-specific 1-day lags (`sat_modis_lag1`, `sat_viirs_lag1`, `sat_snpp_lag1`).
+   - 1-day, 2-day, and 3-day calendar detection lags (`sat_lag1`, `sat_lag2`, `sat_lag3`).
+   - 3-day and 7-day calendar rolling means and 7-day rolling maximums (`sat_roll_mean_3d`, `sat_roll_mean_7d`, `sat_roll_max_7d`).
+   - Sensor-specific 1-day calendar lags (`sat_modis_lag1`, `sat_viirs_lag1`, `sat_snpp_lag1`).
+   - Missingness indicator: `sat_lag1_is_missing`.
 2. **Historical Ground Persistence:**
    - 1-day lagged reported fires (`creams_lag1`).
    - Binary indicator of missingness (`creams_lag1_is_missing`).
    - 3-day and 7-day rolling ground fire means (`creams_roll_mean_3d`, `creams_roll_mean_7d`).
 3. **Agricultural Capacity:**
-   - District Kharif rice area (`kharif_area_ha`) and production (`kharif_prod_t`).
+   - District Kharif rice area (`kharif_area_ha`) and production (`kharif_prod_t`) from prior published agricultural year.
    - Total agricultural area (`total_area_ha`).
-   - Leakage-free prior-season burned area (`prior_season_burned_ha` from season $t-1$).
+   - Prior-season burned area (`prior_season_burned_ha` from season $t-1$).
 4. **Spatial Attributes:**
    - Centroid coordinates (`centroid_lat`, `centroid_lon`).
    - Projected boundary area (`boundary_area_sqkm`).
@@ -158,24 +163,24 @@ Model performance was assessed using standard continuous regression metrics:
 
 ## 13. Results & Empirical Leaderboard
 
-### Table 1: Model Performance Benchmark Across Chronological Splits
+### Table 1: Model Performance Benchmark Across Chronological Splits (Audited)
 
 | Algorithm | Validation MAE | Validation RMSE | Validation $R^2$ | Test MAE (2024–26) | Test RMSE | Test $R^2$ | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Random Forest Regressor** | **11.93** | **26.46** | **0.686** | **7.60** | **15.48** | **0.308** | **Champion Model** |
-| **Gradient Boosting Regressor** | 12.25 | 27.26 | 0.667 | 7.79 | 15.22 | 0.331 | Competitive |
-| **Linear Regression** | 14.50 | 28.22 | 0.643 | 10.44 | 16.82 | 0.183 | Linear Baseline |
-| **Decision Tree Regressor** | 13.43 | 30.28 | 0.589 | 8.07 | 16.87 | 0.178 | Single Tree |
+| **Random Forest Regressor** | **11.86** | **26.20** | **0.692** | **7.51** | **15.30** | **0.324** | **Champion Model** |
+| **Gradient Boosting Regressor** | 12.30 | 26.82 | 0.678 | 7.97 | 15.50 | 0.306 | Competitive |
+| **Linear Regression** | 14.51 | 28.19 | 0.644 | 10.43 | 16.81 | 0.184 | Linear Baseline |
+| **Decision Tree Regressor** | 13.40 | 30.20 | 0.591 | 8.05 | 16.77 | 0.188 | Single Tree |
 | **Dummy Regressor (Baseline)** | 40.24 | 51.53 | -0.190 | 36.49 | 38.16 | -3.205 | Naive Mean |
 
 ### Key Experimental Findings:
-1. **Random Forest Achieves Lowest Validation Error:** Random Forest reduces prediction error from 40.24 to 11.93 fires/day, capturing non-linear interactions between satellite momentum and calendar timing.
-2. **Prospectively Robust Test Performance:** On prospective seasons (2024–2026), the test MAE drops to **7.60 fires/day**, reflecting lower aggregate burning intensity in recent post-monsoon campaigns.
+1. **Random Forest Achieves Lowest Validation Error:** Random Forest reduces prediction error from 40.24 to 11.86 fires/day, capturing non-linear interactions between satellite momentum and calendar timing.
+2. **Prospectively Robust Test Performance:** On prospective seasons (2024–2026), the test MAE is **7.51 fires/day**, reflecting lower aggregate burning intensity in recent post-monsoon campaigns.
 3. **Feature Importance Hierarchy:** The top 3 predictive drivers identified by Gini importance are:
-   - `sat_roll_mean_3d` (3-day rolling satellite detection average) — 38.4%
-   - `creams_roll_mean_3d` (3-day rolling ground fire count average) — 24.1%
-   - `day_of_season` (Seasonal progression counter) — 11.2%
-   - `kharif_area_ha` (District rice acreage) — 7.5%
+   - `sat_roll_mean_3d` (3-day rolling satellite detection average) — 38.9%
+   - `creams_roll_mean_3d` (3-day rolling ground fire count average) — 23.8%
+   - `day_of_season` (Seasonal progression counter) — 11.0%
+   - `kharif_area_ha` (District rice acreage) — 7.2%
 
 ---
 
@@ -200,7 +205,7 @@ District rice acreage (`kharif_area_ha`) explains long-term spatial burning volu
 
 ## 16. Conclusion
 
-This project successfully developed an operational machine learning pipeline for district-level agricultural residue burning prediction across Punjab and Haryana. By strictly enforcing chronological splitting, multi-sensor feature lags, and non-negative prediction constraints, our Random Forest pipeline delivers actionable next-day fire forecasts (Validation MAE 11.9 fires/day; Test MAE 7.6 fires/day). The system is fully deployed in a clean Flask web interface suitable for environmental administrators and policy researchers.
+This project successfully developed an operational machine learning pipeline for district-level agricultural residue burning prediction across Punjab and Haryana. By strictly enforcing calendar-day lags, multi-sensor feature lags, prior-year agricultural mapping, and non-negative prediction constraints, our Random Forest pipeline delivers actionable next-day fire forecasts (Validation MAE 11.86 fires/day; Test MAE 7.51 fires/day). The system is fully deployed in an audited Flask web interface with strict validation gates.
 
 ---
 

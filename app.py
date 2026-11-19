@@ -160,6 +160,8 @@ def api_predict():
         custom_inputs=data.get("inputs"),
     )
     return jsonify({"status": "success", "prediction": prediction})
+  except ValueError as e:
+    return jsonify({"status": "error", "message": str(e)}), 400
   except Exception as e:
     return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -175,6 +177,10 @@ def server_error(e):
 
 
 if __name__ == "__main__":
-  print("Starting Stubble Fire Watch Flask Application...")
-  print("Access locally at http://127.0.0.1:5000")
-  app.run(host="127.0.0.1", port=5000, debug=True)
+  port = int(os.environ.get("PORT", 5000))
+  print(f"Starting Stubble Fire Watch Flask Application on port {port}...")
+  app.run(
+      host="0.0.0.0",
+      port=port,
+      debug=os.environ.get("FLASK_DEBUG", "False").lower() == "true",
+  )

@@ -1,6 +1,6 @@
 Model,Val_MAE,Val_RMSE,Val_R2,Test_MAE,Test_RMSE,Test_R2
-Random Forest,11.93,26.46,0.686,7.6,15.48,0.308
-Gradient Boosting,12.25,27.26,0.667,7.79,15.22,0.331
-Linear Regression,14.5,28.22,0.643,10.44,16.82,0.183
-Decision Tree,13.43,30.28,0.589,8.07,16.87,0.178
+Random Forest,11.86,26.2,0.692,7.51,15.3,0.324
+Gradient Boosting,12.3,26.82,0.678,7.97,15.5,0.306
+Linear Regression,14.51,28.19,0.644,10.43,16.81,0.184
+Decision Tree,13.4,30.2,0.591,8.05,16.77,0.188
 Dummy (Baseline),40.24,51.53,-0.19,36.49,38.16,-3.205
