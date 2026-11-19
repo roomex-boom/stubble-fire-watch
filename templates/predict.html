@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Predict Stubble Fires | Stubble Fire Watch{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-10">
+
+      <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+          <h2 class="fw-bold mb-1">
+            <i class="bi bi-cpu text-warning me-2"></i> District Fire Risk Predictor
+          </h2>
+          <p class="text-secondary mb-0">Forecast next-day agricultural residue burning using validated Random Forest regression.</p>
+        </div>
+        <span class="badge bg-secondary p-2">Model: Random Forest (100 Trees)</span>
+      </div>
+
+      <!-- Prediction Form -->
+      <div class="card p-4 mb-4">
+        <form method="POST" action="{{ url_for('predict_page') }}">
+          <div class="row g-3">
+            
+            <!-- State Selector -->
+            <div class="col-md-4">
+              <label for="state_select" class="form-label">State</label>
+              <select class="form-select" id="state_select" name="state" required onchange="filterDistricts()">
+                <option value="Punjab" {% if selected_state == 'Punjab' %}selected{% endif %}>Punjab (22 Districts)</option>
+                <option value="Haryana" {% if selected_state == 'Haryana' %}selected{% endif %}>Haryana (21 Districts)</option>
+              </select>
+            </div>
+
+            <!-- District Selector -->
+            <div class="col-md-4">
+              <label for="district_select" class="form-label">District</label>
+              <select class="form-select" id="district_select" name="district" required>
+                {% for d in districts %}
+                  <option value="{{ d.name }}" data-state="{{ d.state }}" {% if selected_district == d.name %}selected{% endif %}>
+                    {{ d.name.title() }} ({{ d.state }})
+                  </option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <!-- Date Picker -->
+            <div class="col-md-4">
+              <label for="date_input" class="form-label">Prediction Date</label>
+              <input type="date" class="form-control" id="date_input" name="date" value="{{ selected_date or '2026-11-05' }}" required>
+              <small class="text-muted">Post-monsoon window (Oct 15 - Nov 20)</small>
+            </div>
+
+            <!-- Optional Advanced Controls Accordion -->
+            <div class="col-12 mt-3">
+              <div class="accordion" id="advancedAccordion">
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="headingAdv">
+                    <button class="accordion-button collapsed py-2 text-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAdv">
+                      <i class="bi bi-sliders me-2"></i> Optional: Custom Satellite &amp; Agricultural Inputs (Leave blank for historical averages)
+                    </button>
+                  </h2>
+                  <div id="collapseAdv" class="accordion-collapse collapse" data-bs-parent="#advancedAccordion">
+                    <div class="accordion-body bg-light">
+                      <div class="row g-3">
+                        <div class="col-md-4">
+                          <label class="form-label small">Previous Day Satellite Detections (FIRMS)</label>
+                          <input type="number" step="1" min="0" class="form-control form-control-sm" name="sat_lag1" placeholder="e.g. 50">
+                        </div>
+                        <div class="col-md-4">
+                          <label class="form-label small">Previous Day Reported Fires (CREAMS)</label>
+                          <input type="number" step="1" min="0" class="form-control form-control-sm" name="creams_lag1" placeholder="e.g. 35">
+                        </div>
+                        <div class="col-md-4">
+                          <label class="form-label small">Kharif Rice Cultivation Area (ha)</label>
+                          <input type="number" step="1000" min="0" class="form-control form-control-sm" name="kharif_area_ha" placeholder="e.g. 120000">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="col-12 mt-4 text-end">
+              <button type="submit" class="btn btn-warning btn-lg px-4 fw-bold">
+                <i class="bi bi-graph-up-arrow me-2"></i> Generate Prediction
+              </button>
+            </div>
+
+          </div>
+        </form>
+      </div>
+
+      <!-- Prediction Result Display -->
+      {% if result %}
+      <div class="card p-4 border-2 border-warning bg-white shadow-sm mb-4">
+        <div class="row align-items-center">
+          
+          <div class="col-md-7 border-end pe-md-4">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <span class="badge {{ result.risk.badge_class }} fs-6">
+                {{ result.risk.level }} Risk Level
+              </span>
+              {% if result.is_peak_season %}
+                <span class="badge bg-danger text-white">Peak Burning Season Window</span>
+              {% endif %}
+            </div>
+
+            <h3 class="fw-bold mb-1">{{ result.district }} ({{ result.state }})</h3>
+            <p class="text-muted mb-3"><i class="bi bi-calendar-event me-1"></i> Forecast for: <strong>{{ result.date }}</strong></p>
+
+            <div class="alert alert-light border p-3 mb-0">
+              <h6 class="fw-bold mb-1 text-dark"><i class="bi bi-megaphone me-1 text-warning"></i> Administrative Advisory:</h6>
+              <p class="mb-0 text-secondary small">{{ result.risk.advisory }}</p>
+            </div>
+          </div>
+
+          <div class="col-md-5 text-center ps-md-4 mt-3 mt-md-0">
+            <span class="text-uppercase text-muted fw-bold small">Predicted Next-Day Fire Count</span>
+            <div class="display-3 fw-bold text-dark my-1" style="color: {{ result.risk.color }} !important;">
+              {{ result.predicted_fires_int }}
+            </div>
+            <p class="text-muted small mb-0">Estimated agricultural fire incidents</p>
+            <small class="text-secondary">(Continuous model output: {{ result.predicted_fires }})</small>
+          </div>
+
+        </div>
+
+        <!-- Inputs Breakdown -->
+        <hr class="my-4">
+        <h6 class="fw-bold mb-3 text-secondary"><i class="bi bi-info-circle me-1"></i> Feature Inputs Utilized by Pipeline</h6>
+        <div class="row g-2 text-muted small">
+          <div class="col-sm-4">&bull; <strong>Lagged Satellite Detections:</strong> {{ result.inputs_used.sat_lag1 }}</div>
+          <div class="col-sm-4">&bull; <strong>3-Day Rolling Satellite Mean:</strong> {{ "%.1f"|format(result.inputs_used.sat_roll_mean_3d) }}</div>
+          <div class="col-sm-4">&bull; <strong>Lagged Reported Fires:</strong> {{ result.inputs_used.creams_lag1 }}</div>
+          <div class="col-sm-4">&bull; <strong>Kharif Rice Acreage:</strong> {{ "%.0f"|format(result.inputs_used.kharif_area_ha) }} ha</div>
+          <div class="col-sm-4">&bull; <strong>Prior Season Burned Area:</strong> {{ "%.0f"|format(result.inputs_used.prior_season_burned_ha) }} ha</div>
+          <div class="col-sm-4">&bull; <strong>Season Progression Day:</strong> Day {{ result.inputs_used.day_of_season }}</div>
+        </div>
+
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+
+<script>
+function filterDistricts() {
+  const selectedState = document.getElementById('state_select').value;
+  const districtSelect = document.getElementById('district_select');
+  const options = districtSelect.getElementsByTagName('option');
+  
+  let firstMatch = null;
+  for (let opt of options) {
+    if (opt.getAttribute('data-state') === selectedState) {
+      opt.style.display = 'block';
+      if (!firstMatch) firstMatch = opt;
+    } else {
+      opt.style.display = 'none';
+    }
+  }
+  if (firstMatch && districtSelect.selectedOptions[0].getAttribute('data-state') !== selectedState) {
+    firstMatch.selected = true;
+  }
+}
+window.addEventListener('DOMContentLoaded', filterDistricts);
+</script>
+{% endblock %}

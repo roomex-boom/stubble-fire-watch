@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}About &amp; Research Methodology | Stubble Fire Watch{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-10">
+
+      <div class="mb-4">
+        <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fw-bold mb-2">Academic Research Project</span>
+        <h2 class="fw-bold mb-2">Research Methodology &amp; Scientific Limitations</h2>
+        <p class="text-secondary">Machine Learning-Based Prediction of Agricultural Residue Burning Activity Across Districts of Northwestern India</p>
+      </div>
+
+      <!-- Problem Statement -->
+      <div class="card p-4 mb-4">
+        <h5 class="fw-bold mb-3"><i class="bi bi-journal-text text-warning me-2"></i> 1. Problem Statement &amp; Objectives</h5>
+        <p class="text-secondary">
+          Agricultural residue burning in the post-monsoon season across Punjab and Haryana represents a significant atmospheric hazard. Following the Kharif rice harvest, farmers have a short window of 10–20 days to clear fields before sowing Rabi wheat. Due to the high cost and limited window of in-situ residue management machines (such as Happy Seeders and Super-Seeders), open-field burning is widespread.
+        </p>
+        <p class="text-secondary mb-0">
+          This project designs an end-to-end predictive machine learning architecture to forecast next-day district-level active fires (`fires_day`), allowing pollution control authorities and state administrations to deploy preventative interventions proactively.
+        </p>
+      </div>
+
+      <!-- Data Sources & Harmonization -->
+      <div class="card p-4 mb-4">
+        <h5 class="fw-bold mb-3"><i class="bi bi-database-check text-warning me-2"></i> 2. Multi-Source Dataset Integration</h5>
+        <div class="table-responsive">
+          <table class="table table-bordered small align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Dataset Source</th>
+                <th>Provider / Agency</th>
+                <th>Role in Project</th>
+                <th>Key Attributes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>CREAMS Daily</strong></td>
+                <td>ICAR-IARI (Consortium for Research on Agroecosystem Monitoring and Modeling)</td>
+                <td>Primary Target (`fires_day`)</td>
+                <td>District-level reported ground-monitored fire events.</td>
+              </tr>
+              <tr>
+                <td><strong>FIRMS Thermal Anomaly</strong></td>
+                <td>NASA Fire Information for Resource Management System</td>
+                <td>Predictive Features</td>
+                <td>MODIS (1km), VIIRS (375m), and SNPP multi-sensor thermal anomaly detections.</td>
+              </tr>
+              <tr>
+                <td><strong>Paddy Statistics</strong></td>
+                <td>Ministry of Agriculture &amp; Farmers Welfare (DES)</td>
+                <td>Agricultural Predictors</td>
+                <td>District-level Kharif rice cultivation area (ha) and production (tonnes).</td>
+              </tr>
+              <tr>
+                <td><strong>Burned Area (MCD64A1)</strong></td>
+                <td>MODIS Land Collection</td>
+                <td>Historical Context</td>
+                <td>Prior season total burned hectares per district (leakage-free).</td>
+              </tr>
+              <tr>
+                <td><strong>District Boundaries</strong></td>
+                <td>Survey of India / LGD Standardized GeoJSON</td>
+                <td>Spatial Alignment</td>
+                <td>Centroid latitude, longitude, and boundary area in square kilometers.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Honest Discussion of Limitations -->
+      <div class="card p-4 mb-4 border-start border-4 border-warning">
+        <h5 class="fw-bold mb-3"><i class="bi bi-exclamation-triangle-fill text-warning me-2"></i> 3. Scientific Honesty &amp; Dataset Limitations</h5>
+        <ul class="text-secondary mb-0">
+          <li class="mb-2">
+            <strong>Target Missingness (Not Zero):</strong> Approximately 78% of rows in the daily CREAMS archive have missing daily fire counts. In this study, we strictly do <em>not</em> impute missing values as zero. Unmonitored days are excluded from the supervised training set to prevent artificial zero-inflation.
+          </li>
+          <li class="mb-2">
+            <strong>Satellite Detections vs. Ground Fires:</strong> FIRMS satellite detections represent thermal radiation anomalies detected from orbit, not confirmed individual field fires. Multiple satellite pixels may represent one large fire, while heavy cloud or smoke cover can mask ground burning.
+          </li>
+          <li class="mb-2">
+            <strong>Chronological Leakage Prevention:</strong> Models are trained strictly on historical seasons (2018–2022) and tested on held-out subsequent seasons (2023, 2024–2026). All rolling averages and satellite features are lagged by at least 1 day ($t-1$).
+          </li>
+          <li class="mb-0">
+            <strong>Geographic Boundary Edge Cases:</strong> 43 districts possess exact boundary polygons. Newer districts (e.g., Malerkotla, Charkhi Dadri) are retained in tabular modeling and imputed with state-level spatial centroids.
+          </li>
+        </ul>
+      </div>
+
+      <!-- Models & Performance -->
+      <div class="card p-4 mb-4">
+        <h5 class="fw-bold mb-3"><i class="bi bi-cpu text-warning me-2"></i> 4. Machine Learning Algorithms Evaluated</h5>
+        <p class="text-secondary">
+          We evaluated five regression models under identical time-series splits:
+        </p>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="p-3 bg-light rounded border">
+              <h6 class="fw-bold mb-1">Dummy Regressor (Baseline)</h6>
+              <p class="text-muted small mb-0">Predicts historical training mean. Validation MAE: 40.2 fires/day, R²: -0.19.</p>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="p-3 bg-light rounded border">
+              <h6 class="fw-bold mb-1">Linear Regression</h6>
+              <p class="text-muted small mb-0">Standard multivariate linear regressor. Validation MAE: 14.5 fires/day, R²: 0.64.</p>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="p-3 bg-light rounded border">
+              <h6 class="fw-bold mb-1">Decision Tree Regressor</h6>
+              <p class="text-muted small mb-0">Non-linear regression tree (max depth 6). Validation MAE: 13.4 fires/day, R²: 0.59.</p>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="p-3 bg-light rounded border border-warning">
+              <h6 class="fw-bold mb-1 text-warning">Random Forest Regressor (Champion)</h6>
+              <p class="text-muted small mb-0">100-tree ensemble with max depth 10. Validation MAE: 11.9 fires/day, R²: 0.69.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Authors & Project Meta -->
+      <div class="card p-4 bg-light border-0 text-center">
+        <h6 class="fw-bold mb-1">Stubble Fire Watch &bull; BTech Capstone &amp; Academic Machine Learning Project</h6>
+        <p class="text-muted small mb-0">Developed using Python 3.12, Scikit-Learn, Pandas, GeoPandas, Matplotlib, and Flask.</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
